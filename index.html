@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>BGMI Scope-by-Scope Sensitivity Calibration Lab & Simulator</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Google Fonts: Chakra Petch & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bgmi: {
+              bg: '#070a12',
+              card: '#0d1322',
+              surface: '#121b30',
+              border: '#1e2d4d',
+              cyan: '#00f0ff',
+              emerald: '#10b981',
+              amber: '#f59e0b',
+              rose: '#f43f5e',
+              purple: '#a855f7'
+            }
+          },
+          fontFamily: {
+            tech: ['"Chakra Petch"', 'sans-serif'],
+            sans: ['"Inter"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Tactical Scrollbars */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #070a12; }
+    ::-webkit-scrollbar-thumb { background: #1e2d4d; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #00f0ff; }
+
+    /* Tactical clipped aesthetics */
+    .tactical-panel {
+      background: radial-gradient(circle at top left, #121b30, #0d1322);
+      border: 1px solid #1e2d4d;
+    }
+    .neon-cyan-glow {
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.25);
+    }
+    .neon-emerald-glow {
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.25);
+    }
+    
+    /* Strict Mobile Canvas Protection against Gestures */
+    canvas {
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+  </style>
+</head>
+<body class="bg-bgmi-bg text-slate-100 font-sans min-h-screen flex flex-col select-none overflow-x-hidden">
+
+  <!-- ================= TOP HUD NAV ================= -->
+  <header class="w-full bg-bgmi-card/95 border-b border-bgmi-border sticky top-0 z-50 px-3 md:px-5 py-2.5 flex items-center justify-between backdrop-blur-md">
+    <div class="flex items-center space-x-3">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-bgmi-cyan to-blue-600 flex items-center justify-center text-slate-950 font-bold text-base font-tech shadow-md shadow-cyan-500/20">
+        <i class="fa-solid fa-crosshairs"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-xs md:text-sm font-bold font-tech tracking-wider uppercase text-white">
+            BGMI <span class="text-bgmi-cyan">SENSITIVITY LAB</span>
+          </h1>
+          <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-bgmi-cyan/15 text-bgmi-cyan border border-bgmi-cyan/30 uppercase">PRO CALIBRATOR</span>
+        </div>
+        <p class="text-[10px] text-slate-400 font-mono tracking-tight hidden sm:block">Scope-by-Scope Enemy Spotting • Tracking • ADS Recoil • Gyro Telemetry</p>
+      </div>
+    </div>
+
+    <!-- Mode Navigation Tabs & Fullscreen -->
+    <div class="flex items-center gap-2 text-xs font-tech">
+      <div class="flex bg-bgmi-bg p-0.5 rounded-lg border border-bgmi-border">
+        <button id="navBtnLab" onclick="lab.setPage('lab')" class="px-3 py-1 rounded text-bgmi-cyan bg-bgmi-surface border border-bgmi-cyan/40 font-bold transition-all">SIMULATOR</button>
+        <button id="navBtnTable" onclick="lab.setPage('table')" class="px-3 py-1 rounded text-slate-400 hover:text-white transition-all">SENS TABLE</button>
+      </div>
+      <button onclick="lab.toggleFullscreen()" class="w-7 h-7 rounded bg-bgmi-surface border border-bgmi-border text-slate-300 hover:text-bgmi-cyan flex items-center justify-center transition-all" title="Toggle Fullscreen">
+        <i class="fa-solid fa-expand text-xs"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed top-14 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 opacity-0 -translate-y-2 max-w-sm w-11/12 bg-bgmi-surface/95 border border-bgmi-cyan text-white text-xs py-2 px-3.5 rounded-lg shadow-xl shadow-cyan-950/60 flex items-center gap-2">
+    <i class="fa-solid fa-circle-info text-bgmi-cyan"></i>
+    <span id="toastMsg" class="font-mono">Ready</span>
+  </div>
+
+  <!-- MAIN WRAPPER -->
+  <main class="flex-1 w-full max-w-7xl mx-auto flex flex-col p-2.5 md:p-4 gap-3 relative">
+
+    <!-- ================= PAGE 1: LAB / SIMULATOR ================= -->
+    <section id="pageLab" class="flex-1 flex flex-col gap-2.5">
+
+      <!-- TOP CONTROL STRIP: Scope Selection & Drill Type Selector -->
+      <div class="tactical-panel p-2.5 md:p-3 rounded-xl flex flex-col gap-2.5">
+        <!-- 1. Scope Selector Carousel -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-bgmi-border pb-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-tech font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-telescope text-bgmi-cyan"></i> Scope Focus:
+            </span>
+            <span id="activeScopeLabel" class="text-xs font-mono font-bold text-bgmi-cyan px-2 py-0.5 rounded bg-bgmi-cyan/10 border border-bgmi-cyan/30">
+              Red Dot / Holo (1.3x)
+            </span>
+          </div>
+
+          <!-- Quick Auto-Harmonic Tune Button -->
+          <button onclick="lab.autoTuneHarmonics()" class="self-start sm:self-auto text-[11px] font-tech text-emerald-400 hover:text-emerald-300 px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/30 transition-all flex items-center gap-1">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-Tune Other Scopes From Calibrated
+          </button>
+        </div>
+
+        <!-- Scope Pills Carousel -->
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-mono tracking-tight" id="scopeButtonsContainer">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- 2. Drill Mode Pills & Sensor Controls -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+          <!-- Drill Modes -->
+          <div class="flex items-center gap-1 text-xs font-tech">
+            <span class="text-slate-400 mr-1 text-[11px] font-mono hidden md:inline">DRILL:</span>
+            <button onclick="lab.setDrill('spotting')" id="drillBtn-spotting" class="px-2.5 py-1.5 rounded-lg border border-bgmi-cyan bg-bgmi-cyan/20 text-bgmi-cyan font-bold flex items-center gap-1.5">
+              <i class="fa-solid fa-crosshairs"></i> 1. Spotting & Flick
+            </button>
+            <button onclick="lab.setDrill('tracking')" id="drillBtn-tracking" class="px-2.5 py-1.5 rounded-lg border border-bgmi-border bg-bgmi-card text-slate-300 hover:text-white flex items-center gap-1.5">
+              <i class="fa-solid fa-person-running"></i> 2. Dynamic Tracking
+            </button>
+            <button onclick="lab.setDrill('recoil')" id="drillBtn-recoil" class="px-2.5 py-1.5 rounded-lg border border-bgmi-border bg-bgmi-card text-slate-300 hover:text-white flex items-center gap-1.5">
+              <i class="fa-solid fa-burst"></i> 3. ADS Spray Recoil
+            </button>
+          </div>
+
+          <!-- Gyro State & Sensitivity Profile Hardware Settings -->
+          <div class="flex items-center gap-2 text-xs font-mono">
+            <!-- Gyro Mode Dropdown -->
+            <div class="flex items-center gap-1 bg-bgmi-card px-2 py-1 rounded border border-bgmi-border">
+              <i class="fa-solid fa-compass text-bgmi-cyan"></i>
+              <span class="text-slate-400 text-[10px]">GYRO:</span>
+              <select id="gyroModeSelect" onchange="lab.setGyroMode(this.value)" class="bg-transparent text-white text-xs outline-none cursor-pointer">
+                <option value="always" class="bg-bgmi-card">Always On (400%)</option>
+                <option value="scope" class="bg-bgmi-card">Scope On Only</option>
+                <option value="off" class="bg-bgmi-card">Gyro Off (Pure Touch)</option>
+              </select>
+            </div>
+
+            <!-- Permission / Gyro Status Pill -->
+            <button id="gyroPermButton" onclick="lab.requestGyroPermission()" class="px-2 py-1 rounded bg-bgmi-card border border-bgmi-border text-yellow-400 hover:border-yellow-400 text-[11px] flex items-center gap-1 transition-all">
+              <i class="fa-solid fa-rotate"></i> <span id="gyroStatusText">Enable Gyro</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SIMULATION VIEWPORT & LIVE TELEMETRY WRAPPER -->
+      <div class="flex-1 flex flex-col lg:flex-row gap-2.5 min-h-[460px] md:min-h-[520px]">
+        
+        <!-- MAIN CANVAS ARENA -->
+        <div class="relative flex-1 rounded-xl overflow-hidden border border-bgmi-border bg-black shadow-2xl flex flex-col justify-center select-none" id="canvasContainer">
+          <canvas id="simCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+
+          <!-- Real-Time HUD Overlay: Scope Reticle Watermark & FOV stats -->
+          <div class="absolute top-3 left-3 pointer-events-none flex flex-col gap-1 text-[11px] font-mono text-slate-300 bg-bgmi-card/85 backdrop-blur-md p-2.5 rounded-lg border border-bgmi-border z-10">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-bgmi-cyan animate-pulse"></span>
+              <span id="hudScopeTag" class="text-white font-bold font-tech uppercase">RED DOT SIGHT (FOV: 70°)</span>
+            </div>
+            <div class="text-[10px] text-slate-400">DRILL: <span id="hudDrillTag" class="text-bgmi-cyan uppercase">SPOTTING FLICK</span></div>
+            <div class="text-[10px] text-slate-400">MAGNIFICATION: <span id="hudMagTag" class="text-yellow-400">1.3x ZOOM</span></div>
+          </div>
+
+          <!-- Top-Right Performance Stats -->
+          <div class="absolute top-3 right-3 pointer-events-none flex flex-col items-end gap-1 text-right bg-bgmi-card/85 backdrop-blur-md p-2.5 rounded-lg border border-bgmi-border z-10 font-mono">
+            <div class="text-[10px] text-slate-400 uppercase">LOCK-ON TIME / ACCURACY</div>
+            <div id="hudAccuracyVal" class="text-sm font-bold text-emerald-400">0.0%</div>
+            <div class="text-[10px] text-slate-400">TIME LEFT: <span id="hudTimerVal" class="text-yellow-400 font-bold">15.0s</span></div>
+          </div>
+
+          <!-- Bottom Canvas Tactical Overlay: Fire / Spray Button for Claw & Mobile Emulation -->
+          <div class="absolute bottom-3 right-3 flex items-center gap-2 z-10">
+            <button id="btnTouchFire" class="w-16 h-16 rounded-full bg-rose-600/80 active:bg-rose-500 border-2 border-rose-400/80 text-white font-tech text-xs uppercase flex flex-col items-center justify-center shadow-lg active:scale-95 transition-all">
+              <i class="fa-solid fa-crosshairs text-base"></i>
+              <span class="text-[9px] font-bold">ADS FIRE</span>
+            </button>
+          </div>
+
+          <!-- Central Drill Start / Finished Banner Overlay -->
+          <div id="drillPromptOverlay" class="absolute inset-0 bg-bgmi-bg/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center z-20 transition-all">
+            <div class="max-w-md w-full tactical-panel p-5 rounded-2xl border border-bgmi-cyan/40 neon-cyan-glow flex flex-col items-center gap-3">
+              <div class="w-12 h-12 rounded-full bg-bgmi-cyan/15 border border-bgmi-cyan flex items-center justify-center text-bgmi-cyan text-xl">
+                <i id="promptIcon" class="fa-solid fa-bullseye"></i>
+              </div>
+              <h3 id="promptTitle" class="text-base md:text-lg font-bold font-tech uppercase text-white tracking-wider">
+                Red Dot: Spotting & Flick Acquisition
+              </h3>
+              <p id="promptDesc" class="text-xs text-slate-300 leading-relaxed">
+                Enemy silhouettes will pop up at randomized positions. Swiftly flick and spot the targets with your finger or gyro to measure snap accuracy and overshoot!
+              </p>
+              
+              <!-- Drill Settings: Duration -->
+              <div class="flex items-center gap-3 text-xs font-mono text-slate-400">
+                <span>Duration: 15s</span>
+                <span>•</span>
+                <span>Weapon: M416 Sim</span>
+              </div>
+
+              <button onclick="lab.startCurrentDrill()" class="w-full py-3 rounded-xl bg-gradient-to-r from-bgmi-cyan to-blue-600 text-slate-950 font-bold font-tech text-sm uppercase tracking-wider hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20">
+                <i class="fa-solid fa-play"></i> START SCOPE DRILL
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT SIDEBAR: DUAL GYRO & TOUCH TELEMETRY MATRIX -->
+        <div class="w-full lg:w-80 flex flex-col gap-2.5">
+          
+          <!-- Live Telemetry Card -->
+          <div class="tactical-panel p-3 rounded-xl flex flex-col gap-2.5">
+            <div class="flex items-center justify-between border-b border-bgmi-border pb-1.5">
+              <span class="text-xs font-tech font-bold uppercase text-slate-200 flex items-center gap-1.5">
+                <i class="fa-solid fa-chart-simple text-bgmi-cyan"></i> Dual Sensor Feed
+              </span>
+              <span class="text-[10px] font-mono text-slate-400">60Hz POLLING</span>
+            </div>
+
+            <!-- Touch vs Gyro Workload Ratio Bar -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-[10px] font-mono">
+                <span class="text-slate-400">Input Contribution:</span>
+                <span class="text-white"><span id="ratioTouchText" class="text-cyan-400">50% Touch</span> | <span id="ratioGyroText" class="text-emerald-400">50% Gyro</span></span>
+              </div>
+              <div class="h-2 w-full bg-bgmi-bg rounded-full overflow-hidden flex border border-bgmi-border">
+                <div id="barTouchRatio" class="h-full bg-bgmi-cyan transition-all duration-100" style="width: 50%;"></div>
+                <div id="barGyroRatio" class="h-full bg-emerald-500 transition-all duration-100" style="width: 50%;"></div>
+              </div>
+            </div>
+
+            <!-- Telemetry Metrics Grid -->
+            <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+              <div class="bg-bgmi-bg/60 p-2 rounded border border-bgmi-border">
+                <span class="text-[9px] text-slate-400 uppercase block">Touch Delta</span>
+                <span id="telTouchDelta" class="text-xs font-bold text-bgmi-cyan">0 px (0 mm)</span>
+              </div>
+              <div class="bg-bgmi-bg/60 p-2 rounded border border-bgmi-border">
+                <span class="text-[9px] text-slate-400 uppercase block">Gyro Tilt Rate</span>
+                <span id="telGyroVel" class="text-xs font-bold text-emerald-400">0.0 °/s</span>
+              </div>
+              <div class="bg-bgmi-bg/60 p-2 rounded border border-bgmi-border">
+                <span class="text-[9px] text-slate-400 uppercase block">Flick Snap Ratio</span>
+                <span id="telSnapRatio" class="text-xs font-bold text-yellow-400">1.00 (Neutral)</span>
+              </div>
+              <div class="bg-bgmi-bg/60 p-2 rounded border border-bgmi-border">
+                <span class="text-[9px] text-slate-400 uppercase block">Recoil Counter</span>
+                <span id="telRecoilDelta" class="text-xs font-bold text-purple-400">0 px pull</span>
+              </div>
+            </div>
+
+            <!-- Real-time Crosshair Jitter Oscilloscope mini-canvas -->
+            <div>
+              <div class="flex justify-between text-[10px] font-mono text-slate-400 mb-1">
+                <span>Micro-Jitter & Lead Tracking:</span>
+                <span id="jitterText" class="text-emerald-400">Stable</span>
+              </div>
+              <div class="h-16 w-full bg-bgmi-bg rounded border border-bgmi-border overflow-hidden relative">
+                <canvas id="jitterCanvas" class="w-full h-full block"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Generated Sensitivity for Current Scope -->
+          <div class="tactical-panel p-3 rounded-xl flex-1 flex flex-col justify-between gap-2.5">
+            <div>
+              <div class="flex items-center justify-between border-b border-bgmi-border pb-1.5 mb-2">
+                <span class="text-xs font-tech font-bold uppercase text-slate-200 flex items-center gap-1.5">
+                  <i class="fa-solid fa-sliders text-yellow-400"></i> Calibrated Values For <span id="currentScopeTitlePill" class="text-bgmi-cyan">Red Dot</span>
+                </span>
+                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">CALIBRATING</span>
+              </div>
+
+              <!-- Scope Specific Generated Output Mini Table -->
+              <div class="space-y-1.5 font-mono text-xs">
+                <div class="flex items-center justify-between bg-bgmi-bg/50 px-2 py-1.5 rounded border border-bgmi-border">
+                  <span class="text-slate-300 text-[11px]">Camera Sens:</span>
+                  <span id="calScopeCam" class="font-bold text-bgmi-cyan text-sm">52%</span>
+                </div>
+                <div class="flex items-center justify-between bg-bgmi-bg/50 px-2 py-1.5 rounded border border-bgmi-border">
+                  <span class="text-slate-300 text-[11px]">ADS Fire Sens:</span>
+                  <span id="calScopeADS" class="font-bold text-yellow-400 text-sm">55%</span>
+                </div>
+                <div class="flex items-center justify-between bg-bgmi-bg/50 px-2 py-1.5 rounded border border-bgmi-border">
+                  <span class="text-slate-300 text-[11px]">Gyroscope Sens:</span>
+                  <span id="calScopeGyro" class="font-bold text-emerald-400 text-sm">345%</span>
+                </div>
+                <div class="flex items-center justify-between bg-bgmi-bg/50 px-2 py-1.5 rounded border border-bgmi-border">
+                  <span class="text-slate-300 text-[11px]">ADS Gyroscope Sens:</span>
+                  <span id="calScopeADSGyro" class="font-bold text-purple-400 text-sm">330%</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Fast Action buttons -->
+            <div class="flex flex-col gap-1.5 pt-2">
+              <button onclick="lab.setPage('table')" class="w-full py-2 rounded-lg bg-bgmi-surface border border-bgmi-cyan/40 text-bgmi-cyan hover:bg-bgmi-cyan hover:text-slate-950 font-tech font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-list-check"></i> View Full BGMI Sensitivity Sheet
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= PAGE 2: FULL BGMI SENSITIVITY TABLE ================= -->
+    <section id="pageTable" class="hidden flex-1 flex flex-col gap-3">
+      
+      <!-- Top Overview Banner -->
+      <div class="tactical-panel p-3.5 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-base font-bold font-tech text-white uppercase tracking-wider">Full BGMI In-Game Sensitivity Matrix</h2>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 uppercase">v3.x Engine</span>
+          </div>
+          <p class="text-xs text-slate-300 mt-0.5">Custom calibrated based on your physical swipe arc, focal FOV harmonics, and gyro wrist tilt.</p>
+        </div>
+
+        <div class="flex items-center gap-2 self-stretch md:self-auto">
+          <button onclick="lab.copyBGMICode()" class="flex-1 md:flex-none py-2 px-3.5 rounded-lg bg-bgmi-cyan text-slate-950 font-tech font-bold text-xs uppercase tracking-wider hover:opacity-95 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-cyan-500/20">
+            <i class="fa-solid fa-copy"></i> Copy BGMI Code
+          </button>
+          <button onclick="lab.downloadConfigJSON()" class="py-2 px-3 rounded-lg bg-bgmi-card border border-bgmi-border text-slate-300 hover:text-white text-xs font-tech uppercase tracking-wider">
+            <i class="fa-solid fa-download"></i> JSON
+          </button>
+          <button onclick="lab.setPage('lab')" class="py-2 px-3 rounded-lg bg-bgmi-surface border border-bgmi-border text-bgmi-cyan hover:bg-bgmi-card text-xs font-tech uppercase tracking-wider">
+            <i class="fa-solid fa-arrow-left"></i> Back to Lab
+          </button>
+        </div>
+      </div>
+
+      <!-- Category Filter Tabs -->
+      <div class="flex items-center gap-1.5 bg-bgmi-card p-1 rounded-xl border border-bgmi-border text-xs font-tech font-bold uppercase overflow-x-auto">
+        <button onclick="lab.setTableCategory('camera')" id="tblTab-camera" class="flex-1 min-w-[120px] py-2 rounded-lg bg-bgmi-cyan/20 border border-bgmi-cyan text-bgmi-cyan text-center">Camera Sens</button>
+        <button onclick="lab.setTableCategory('ads')" id="tblTab-ads" class="flex-1 min-w-[120px] py-2 rounded-lg text-slate-400 hover:text-white text-center">ADS Fire Sens</button>
+        <button onclick="lab.setTableCategory('gyro')" id="tblTab-gyro" class="flex-1 min-w-[120px] py-2 rounded-lg text-slate-400 hover:text-white text-center">Gyroscope (400%)</button>
+        <button onclick="lab.setTableCategory('adsGyro')" id="tblTab-adsGyro" class="flex-1 min-w-[120px] py-2 rounded-lg text-slate-400 hover:text-white text-center">ADS Gyroscope (400%)</button>
+      </div>
+
+      <!-- Dynamic Scope Sliders Grid -->
+      <div class="tactical-panel p-4 rounded-xl flex-1 flex flex-col justify-between">
+        <div id="tableSlidersList" class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Diagnostic Footnote -->
+        <div class="mt-4 pt-3 border-t border-bgmi-border flex flex-col sm:flex-row items-center justify-between text-[11px] font-mono text-slate-400 gap-2">
+          <div>
+            <span>Harmonic Scaling: </span>
+            <span class="text-emerald-400">True Focal Ratio (FOV tangent based)</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Calibrated in Drill</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-yellow-400"></span> Auto-Tuned</span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ================= LOGIC & CALIBRATION ENGINE SCRIPT ================= -->
+  <script>
+    /**
+     * Scope Specs Definition
+     * Realistic FOV, Zoom Factor, Recoil Dampening and Base Multipliers
+     */
+    const SCOPES = [
+      { id: 'tpp', name: 'TPP No Scope', zoom: 1.0, fov: 90, icon: 'fa-eye', isSniperOnly: false, baseCam: 120, baseADS: 115, baseGyro: 380, baseADSGyro: 370 },
+      { id: 'reddot', name: 'Red Dot / Holo', zoom: 1.3, fov: 70, icon: 'fa-circle-dot', isSniperOnly: false, baseCam: 55, baseADS: 58, baseGyro: 360, baseADSGyro: 350 },
+      { id: 'scope2x', name: '2x Scope', zoom: 2.0, fov: 50, icon: 'fa-bullseye', isSniperOnly: false, baseCam: 38, baseADS: 40, baseGyro: 330, baseADSGyro: 320 },
+      { id: 'scope3x', name: '3x Scope', zoom: 3.0, fov: 33, icon: 'fa-crosshairs', isSniperOnly: false, baseCam: 28, baseADS: 30, baseGyro: 270, baseADSGyro: 260 },
+      { id: 'scope4x', name: '4x Scope', zoom: 4.0, fov: 24, icon: 'fa-shield-halved', isSniperOnly: false, baseCam: 18, baseADS: 20, baseGyro: 220, baseADSGyro: 210 },
+      { id: 'scope6x', name: '6x Scope', zoom: 6.0, fov: 15, icon: 'fa-ring', isSniperOnly: false, baseCam: 13, baseADS: 14, baseGyro: 140, baseADSGyro: 135 },
+      { id: 'scope8x', name: '8x Scope', zoom: 8.0, fov: 10, icon: 'fa-arrows-to-circle', isSniperOnly: true, baseCam: 10, baseADS: 10, baseGyro: 95, baseADSGyro: 85 }
+    ];
+
+    class BGMICalibrationLab {
+      constructor() {
+        this.activePage = 'lab'; // 'lab' | 'table'
+        this.activeScopeId = 'reddot';
+        this.activeDrill = 'spotting'; // 'spotting' | 'tracking' | 'recoil'
+        this.gyroMode = 'always'; // 'always' | 'scope' | 'off'
+        this.tableCategory = 'camera'; // 'camera' | 'ads' | 'gyro' | 'adsGyro'
+
+        // Per-scope calibration records
+        this.calibratedData = {};
+        SCOPES.forEach(s => {
+          this.calibratedData[s.id] = {
+            isTested: false,
+            flickRatio: 1.0, // 1.0 = perfect snap; <1 under; >1 over
+            trackingScore: 85.0, // %
+            recoilCounterRatio: 1.0, // pull down vs kick
+            camSens: s.baseCam,
+            adsSens: s.baseADS,
+            gyroSens: s.baseGyro,
+            adsGyroSens: s.baseADSGyro,
+          };
+        });
+
+        // Gyroscope Hardware Telemetry
+        this.gyro = {
+          hasHardware: false,
+          pitch: 0,
+          roll: 0,
+          yaw: 0,
+          lastPitch: 0,
+          lastRoll: 0,
+          deltaPitch: 0,
+          deltaRoll: 0,
+          angularRate: 0,
+        };
+
+        // Dual Input Telemetry accumulator
+        this.inputAccumulator = {
+          touchDeltaTotal: 0,
+          gyroDeltaTotal: 0,
+          touchCount: 0,
+          gyroCount: 0,
+        };
+
+        // Drill Loop & Canvas Engine
+        this.canvas = document.getElementById('simCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.jitterCanvas = document.getElementById('jitterCanvas');
+        this.jitterCtx = this.jitterCanvas.getContext('2d');
+        this.jitterHistory = new Array(40).fill(0);
+
+        this.drillActive = false;
+        this.drillTime = 15.0; // seconds
+        this.drillDuration = 15.0;
+        this.drillTimerInterval = null;
+        this.animationId = null;
+
+        // Simulation entities & crosshairs
+        this.sim = {
+          width: 800,
+          height: 500,
+          // Crosshair position (viewport coordinates)
+          crosshair: { x: 400, y: 250 },
+          // Spotting Targets (Array of enemy silhouettes)
+          spotTargets: [],
+          activeTargetIndex: 0,
+          // Dynamic Tracking Enemy
+          runner: {
+            x: 200, y: 250, vx: 3.5, vy: 0, 
+            direction: 1, 
+            width: 38, height: 75,
+            state: 'strafe', // 'strafe' | 'jiggle' | 'crouch'
+            stateTimer: 0,
+            isLocked: false,
+            totalLockFrames: 0,
+            totalActiveFrames: 0
+          },
+          // ADS Recoil Physics
+          recoil: {
+            isFiring: false,
+            roundsFired: 0,
+            maxRounds: 30,
+            fireRateDelay: 0.1, // sec per round
+            verticalClimbTotal: 0,
+            userPullTotal: 0,
+            targetCrosshairY: 250,
+            kickVelocityY: 0,
+            bloomX: 0
+          }
+        };
+
+        // Pointer tracking
+        this.pointer = {
+          isDown: false,
+          startX: 0, startY: 0,
+          lastX: 0, lastY: 0,
+          deltaX: 0, deltaY: 0,
+          startTime: 0
+        };
+
+        this.init();
+      }
+
+      init() {
+        this.renderScopePills();
+        this.bindEvents();
+        this.resizeCanvases();
+        this.updateCurrentScopeHUD();
+        this.setupGyroscopeListener();
+        this.renderTableSliders();
+
+        window.addEventListener('resize', () => this.resizeCanvases());
+      }
+
+      showToast(text) {
+        const toast = document.getElementById('toast');
+        const msg = document.getElementById('toastMsg');
+        msg.textContent = text;
+        toast.classList.remove('opacity-0', '-translate-y-2');
+        toast.classList.add('opacity-100', 'translate-y-0');
+        setTimeout(() => {
+          toast.classList.remove('opacity-100', 'translate-y-0');
+          toast.classList.add('opacity-0', '-translate-y-2');
+        }, 2200);
+      }
+
+      setPage(page) {
+        this.activePage = page;
+        document.getElementById('pageLab').classList.toggle('hidden', page !== 'lab');
+        document.getElementById('pageTable').classList.toggle('hidden', page !== 'table');
+
+        const btnLab = document.getElementById('navBtnLab');
+        const btnTable = document.getElementById('navBtnTable');
+        if (page === 'lab') {
+          btnLab.className = 'px-3 py-1 rounded text-bgmi-cyan bg-bgmi-surface border border-bgmi-cyan/40 font-bold';
+          btnTable.className = 'px-3 py-1 rounded text-slate-400 hover:text-white';
+          this.resizeCanvases();
+        } else {
+          btnTable.className = 'px-3 py-1 rounded text-bgmi-cyan bg-bgmi-surface border border-bgmi-cyan/40 font-bold';
+          btnLab.className = 'px-3 py-1 rounded text-slate-400 hover:text-white';
+          this.renderTableSliders();
+        }
+      }
+
+      toggleFullscreen() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen?.().catch(() => {});
+        } else {
+          document.exitFullscreen?.().catch(() => {});
+        }
+      }
+
+      renderScopePills() {
+        const container = document.getElementById('scopeButtonsContainer');
+        container.innerHTML = '';
+        SCOPES.forEach(scope => {
+          const isAct = scope.id === this.activeScopeId;
+          const isTested = this.calibratedData[scope.id].isTested;
+          const btn = document.createElement('button');
+          btn.className = `flex items-center gap-1.5 px-3 py-2 rounded-lg font-tech font-bold uppercase whitespace-nowrap transition-all border ${
+            isAct 
+              ? 'bg-bgmi-cyan/20 border-bgmi-cyan text-bgmi-cyan shadow-sm shadow-cyan-500/30' 
+              : 'bg-bgmi-card border-bgmi-border text-slate-400 hover:text-white hover:border-slate-600'
+          }`;
+          btn.innerHTML = `
+            <i class="fa-solid ${scope.icon} text-xs"></i>
+            <span>${scope.name}</span>
+            ${isTested ? '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>' : ''}
+          `;
+          btn.onclick = () => this.selectScope(scope.id);
+          container.appendChild(btn);
+        });
+      }
+
+      selectScope(scopeId) {
+        this.activeScopeId = scopeId;
+        this.renderScopePills();
+        this.updateCurrentScopeHUD();
+        this.resetDrillState();
+
+        // Switch drill if 8x and currently on recoil (8x does not have auto-spray)
+        if (scopeId === 'scope8x' && this.activeDrill === 'recoil') {
+          this.setDrill('spotting');
+          this.showToast('8x Scope switched to Precision Sniping Spotting Drill');
+        } else {
+          this.showToast(`Selected ${this.getCurrentScope().name}`);
+        }
+      }
+
+      getCurrentScope() {
+        return SCOPES.find(s => s.id === this.activeScopeId) || SCOPES[1];
+      }
+
+      setDrill(drillType) {
+        // Prevent recoil drill on 8x sniper
+        if (this.activeScopeId === 'scope8x' && drillType === 'recoil') {
+          this.showToast('8x Sniper rifles use single-fire flick/lead tracking!');
+          return;
+        }
+
+        this.activeDrill = drillType;
+        ['spotting', 'tracking', 'recoil'].forEach(d => {
+          const btn = document.getElementById(`drillBtn-${d}`);
+          if (btn) {
+            if (d === drillType) {
+              btn.className = 'px-2.5 py-1.5 rounded-lg border border-bgmi-cyan bg-bgmi-cyan/20 text-bgmi-cyan font-bold flex items-center gap-1.5';
+            } else {
+              btn.className = 'px-2.5 py-1.5 rounded-lg border border-bgmi-border bg-bgmi-card text-slate-300 hover:text-white flex items-center gap-1.5';
+            }
+          }
+        });
+
+        this.updateCurrentScopeHUD();
+        this.resetDrillState();
+      }
+
+      setGyroMode(mode) {
+        this.gyroMode = mode;
+        this.recalculateSensitivities();
+        this.showToast(`Gyroscope mode: ${mode.toUpperCase()}`);
+      }
+
+      updateCurrentScopeHUD() {
+        const scope = this.getCurrentScope();
+        document.getElementById('activeScopeLabel').textContent = `${scope.name} (${scope.zoom}x Zoom)`;
+        document.getElementById('hudScopeTag').textContent = `${scope.name.toUpperCase()} (FOV: ${scope.fov}°)`;
+        document.getElementById('hudDrillTag').textContent = this.activeDrill.toUpperCase();
+        document.getElementById('hudMagTag').textContent = `${scope.zoom}x ZOOM`;
+        document.getElementById('currentScopeTitlePill').textContent = scope.name;
+
+        // Prompt Dialog
+        const promptTitle = document.getElementById('promptTitle');
+        const promptDesc = document.getElementById('promptDesc');
+        const promptIcon = document.getElementById('promptIcon');
+
+        if (this.activeDrill === 'spotting') {
+          promptIcon.className = 'fa-solid fa-crosshairs';
+          promptTitle.textContent = `${scope.name}: Spotting & Flick Acquisition`;
+          promptDesc.textContent = `Randomized enemy silhouettes will emerge at varying angles. Swiftly flick your reticle onto their torso or head to calibrate snap velocity and eliminate overshoot!`;
+        } else if (this.activeDrill === 'tracking') {
+          promptIcon.className = 'fa-solid fa-person-running';
+          promptTitle.textContent = `${scope.name}: Dynamic Enemy Tracking`;
+          promptDesc.textContent = `An enemy will strafe, jiggle-peek, and sprint across your scope view. Keep the center reticle locked on the silhouette to measure tracking precision and hand jitter!`;
+        } else if (this.activeDrill === 'recoil') {
+          promptIcon.className = 'fa-solid fa-burst';
+          promptTitle.textContent = `${scope.name}: ADS Recoil Spray Control`;
+          promptDesc.textContent = `Simulates full-auto M416 spray with authentic vertical climb & horizontal bloom. Hold ADS Fire and counter-drag down with touch or gyro tilt!`;
+        }
+
+        this.updateMiniSensPreview();
+      }
+
+      updateMiniSensPreview() {
+        const data = this.calibratedData[this.activeScopeId];
+        document.getElementById('calScopeCam').textContent = `${data.camSens}%`;
+        document.getElementById('calScopeADS').textContent = `${data.adsSens}%`;
+        document.getElementById('calScopeGyro').textContent = `${this.gyroMode === 'off' ? 0 : data.gyroSens}%`;
+        document.getElementById('calScopeADSGyro').textContent = `${this.gyroMode === 'off' ? 0 : data.adsGyroSens}%`;
+      }
+
+      resizeCanvases() {
+        const cont = document.getElementById('canvasContainer');
+        if (!cont) return;
+        const rect = cont.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+
+        this.sim.width = rect.width;
+        this.sim.height = rect.height;
+
+        this.canvas.width = rect.width * dpr;
+        this.canvas.height = rect.height * dpr;
+        this.ctx.resetTransform?.();
+        this.ctx.scale(dpr, dpr);
+
+        // Jitter canvas
+        const jRect = this.jitterCanvas.parentElement.getBoundingClientRect();
+        this.jitterCanvas.width = jRect.width * dpr;
+        this.jitterCanvas.height = jRect.height * dpr;
+        this.jitterCtx.resetTransform?.();
+        this.jitterCtx.scale(dpr, dpr);
+
+        if (!this.pointer.isDown && !this.drillActive) {
+          this.sim.crosshair.x = rect.width / 2;
+          this.sim.crosshair.y = rect.height / 2;
+        }
+
+        // Redraw idle frame
+        if (!this.drillActive) {
+          this.renderSimulatorFrame();
+        }
+      }
+
+      // Gyroscope Hardware Integration
+      async requestGyroPermission() {
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+          try {
+            const resp = await DeviceOrientationEvent.requestPermission();
+            if (resp === 'granted') {
+              this.gyro.hasHardware = true;
+              this.setupGyroscopeListener();
+              this.updateGyroUIBadge(true);
+              this.showToast('Gyroscope Active & Calibrated!');
+            } else {
+              this.showToast('Gyroscope Permission Refused');
+            }
+          } catch (e) {
+            this.showToast('Gyro API not accessible');
+          }
+        } else {
+          this.setupGyroscopeListener();
+          this.updateGyroUIBadge(true);
+          this.showToast('Listening to device motion');
+        }
+      }
+
+      setupGyroscopeListener() {
+        window.addEventListener('deviceorientation', (e) => {
+          if (e.beta !== null || e.gamma !== null) {
+            this.gyro.hasHardware = true;
+            this.updateGyroUIBadge(true);
+
+            const pitch = e.beta || 0; // Front/back
+            const roll = e.gamma || 0; // Left/right
+
+            if (this.gyro.lastPitch !== 0 && this.gyro.lastRoll !== 0) {
+              this.gyro.deltaPitch = pitch - this.gyro.lastPitch;
+              this.gyro.deltaRoll = roll - this.gyro.lastRoll;
+
+              const degSpeed = Math.hypot(this.gyro.deltaPitch, this.gyro.deltaRoll) * 60;
+              this.gyro.angularRate = degSpeed;
+
+              // Apply Gyro Input to simulator if active and enabled
+              if (this.drillActive && this.gyroMode !== 'off') {
+                const scope = this.getCurrentScope();
+                // Scale gyro motion by scope magnification (higher zoom = smaller angular increments)
+                const zoomDampen = 1 / Math.sqrt(scope.zoom);
+                const gyroFactor = 2.2 * zoomDampen;
+
+                const dx = this.gyro.deltaRoll * gyroFactor;
+                const dy = this.gyro.deltaPitch * gyroFactor;
+
+                this.sim.crosshair.x += dx;
+                this.sim.crosshair.y += dy;
+
+                // Accumulate telemetry
+                this.inputAccumulator.gyroDeltaTotal += Math.hypot(dx, dy);
+                this.inputAccumulator.gyroCount++;
+
+                // Recoil pull down via gyro
+                if (this.activeDrill === 'recoil' && dy > 0) {
+                  this.sim.recoil.userPullTotal += dy * 1.5;
+                }
+              }
+            }
+
+            this.gyro.lastPitch = pitch;
+            this.gyro.lastRoll = roll;
+
+            // Update live telemetry rate
+            document.getElementById('telGyroVel').textContent = `${this.gyro.angularRate.toFixed(1)} °/s`;
+          }
+        });
+      }
+
+      updateGyroUIBadge(active) {
+        const txt = document.getElementById('gyroStatusText');
+        const btn = document.getElementById('gyroPermButton');
+        if (active) {
+          txt.textContent = 'Gyro: ACTIVE';
+          btn.className = 'px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/40 text-emerald-400 text-[11px] flex items-center gap-1';
+        }
+      }
+
+      bindEvents() {
+        const c = this.canvas;
+
+        const onTouchStart = (x, y) => {
+          const rect = c.getBoundingClientRect();
+          this.pointer.isDown = true;
+          this.pointer.startX = x - rect.left;
+          this.pointer.startY = y - rect.top;
+          this.pointer.lastX = this.pointer.startX;
+          this.pointer.lastY = this.pointer.startY;
+          this.pointer.deltaX = 0;
+          this.pointer.deltaY = 0;
+          this.pointer.startTime = performance.now();
+
+          // If recoil drill: holding canvas starts firing
+          if (this.activeDrill === 'recoil') {
+            this.sim.recoil.isFiring = true;
+          }
+        };
+
+        const onTouchMove = (x, y) => {
+          if (!this.pointer.isDown) return;
+          const rect = c.getBoundingClientRect();
+          const curX = x - rect.left;
+          const curY = y - rect.top;
+
+          const dx = curX - this.pointer.lastX;
+          const dy = curY - this.pointer.lastY;
+
+          this.pointer.deltaX += dx;
+          this.pointer.deltaY += dy;
+
+          // Apply to crosshair
+          this.sim.crosshair.x += dx;
+          this.sim.crosshair.y += dy;
+
+          // Clamping inside screen
+          this.sim.crosshair.x = Math.max(15, Math.min(this.sim.width - 15, this.sim.crosshair.x));
+          this.sim.crosshair.y = Math.max(15, Math.min(this.sim.height - 15, this.sim.crosshair.y));
+
+          // Touch recoil pull-down tracking
+          if (this.activeDrill === 'recoil' && dy > 0) {
+            this.sim.recoil.userPullTotal += dy;
+          }
+
+          // Accumulate Touch telemetry
+          const dist = Math.hypot(dx, dy);
+          this.inputAccumulator.touchDeltaTotal += dist;
+          this.inputAccumulator.touchCount++;
+
+          this.pointer.lastX = curX;
+          this.pointer.lastY = curY;
+
+          // Telemetry HUD updates
+          const mm = (this.inputAccumulator.touchDeltaTotal * 0.16).toFixed(1);
+          document.getElementById('telTouchDelta').textContent = `${Math.round(this.inputAccumulator.touchDeltaTotal)} px (${mm} mm)`;
+
+          // Jitter recording
+          this.recordJitter(dx, dy);
+        };
+
+        const onTouchEnd = () => {
+          if (!this.pointer.isDown) return;
+          this.pointer.isDown = false;
+
+          if (this.activeDrill === 'recoil') {
+            this.sim.recoil.isFiring = false;
+          }
+
+          // In spotting drill, lift or tap evaluates flick accuracy
+          if (this.activeDrill === 'spotting' && this.drillActive) {
+            this.evaluateSpottingHit();
+          }
+        };
+
+        // Unified Pointer & Touch Bindings
+        c.addEventListener('mousedown', (e) => onTouchStart(e.clientX, e.clientY));
+        window.addEventListener('mousemove', (e) => onTouchMove(e.clientX, e.clientY));
+        window.addEventListener('mouseup', () => onTouchEnd());
+
+        c.addEventListener('touchstart', (e) => {
+          if (e.touches.length > 0) {
+            onTouchStart(e.touches[0].clientX, e.touches[0].clientY);
+          }
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+          if (e.touches.length > 0) {
+            onTouchMove(e.touches[0].clientX, e.touches[0].clientY);
+          }
+        }, { passive: false });
+
+        window.addEventListener('touchend', () => onTouchEnd());
+
+        // Dedicated Mobile ADS Fire Button
+        const fireBtn = document.getElementById('btnTouchFire');
+        fireBtn.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          this.sim.recoil.isFiring = true;
+        });
+        fireBtn.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          this.sim.recoil.isFiring = false;
+        });
+        fireBtn.addEventListener('mousedown', () => { this.sim.recoil.isFiring = true; });
+        fireBtn.addEventListener('mouseup', () => { this.sim.recoil.isFiring = false; });
+      }
+
+      recordJitter(dx, dy) {
+        const mag = Math.hypot(dx, dy);
+        this.jitterHistory.shift();
+        this.jitterHistory.push(mag);
+        this.renderJitterGraph();
+      }
+
+      renderJitterGraph() {
+        const ctx = this.jitterCtx;
+        const w = this.jitterCanvas.width / (window.devicePixelRatio || 1);
+        const h = this.jitterCanvas.height / (window.devicePixelRatio || 1);
+
+        ctx.clearRect(0, 0, w, h);
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+
+        const step = w / this.jitterHistory.length;
+        this.jitterHistory.forEach((val, i) => {
+          const y = h - Math.min(h - 4, (val / 20) * h);
+          if (i === 0) ctx.moveTo(0, y);
+          else ctx.lineTo(i * step, y);
+        });
+        ctx.stroke();
+      }
+
+      resetDrillState() {
+        this.drillActive = false;
+        clearInterval(this.drillTimerInterval);
+        if (this.animationId) cancelAnimationFrame(this.animationId);
+
+        document.getElementById('drillPromptOverlay').classList.remove('opacity-0', 'pointer-events-none');
+        document.getElementById('hudTimerVal').textContent = '15.0s';
+        document.getElementById('hudAccuracyVal').textContent = '0.0%';
+
+        this.inputAccumulator.touchDeltaTotal = 0;
+        this.inputAccumulator.gyroDeltaTotal = 0;
+        this.sim.crosshair.x = this.sim.width / 2;
+        this.sim.crosshair.y = this.sim.height / 2;
+
+        this.renderSimulatorFrame();
+      }
+
+      startCurrentDrill() {
+        document.getElementById('drillPromptOverlay').classList.add('opacity-0', 'pointer-events-none');
+        this.drillActive = true;
+        this.drillTime = this.drillDuration;
+
+        const scope = this.getCurrentScope();
+
+        // 1. Setup Spotting Drill Targets
+        if (this.activeDrill === 'spotting') {
+          this.generateSpotTargets();
+        }
+
+        // 2. Setup Tracking Runner
+        if (this.activeDrill === 'tracking') {
+          this.sim.runner.x = 100;
+          this.sim.runner.y = this.sim.height * 0.55;
+          // Scale runner speed by scope magnification (higher zoom targets appear to move faster across reticle)
+          this.sim.runner.vx = 2.4 + (scope.zoom * 0.5);
+          this.sim.runner.totalLockFrames = 0;
+          this.sim.runner.totalActiveFrames = 0;
+        }
+
+        // 3. Setup Recoil Test
+        if (this.activeDrill === 'recoil') {
+          this.sim.recoil.roundsFired = 0;
+          this.sim.recoil.verticalClimbTotal = 0;
+          this.sim.recoil.userPullTotal = 0;
+          this.sim.recoil.targetCrosshairY = this.sim.height * 0.65;
+          this.sim.crosshair.y = this.sim.recoil.targetCrosshairY;
+        }
+
+        // Start 15s Countdown
+        clearInterval(this.drillTimerInterval);
+        this.drillTimerInterval = setInterval(() => {
+          this.drillTime -= 0.1;
+          if (this.drillTime <= 0) {
+            this.drillTime = 0;
+            clearInterval(this.drillTimerInterval);
+            this.finishDrill();
+          }
+          document.getElementById('hudTimerVal').textContent = `${this.drillTime.toFixed(1)}s`;
+          this.updateTelemetryRatioHUD();
+        }, 100);
+
+        this.runSimulationLoop();
+      }
+
+      generateSpotTargets() {
+        this.sim.spotTargets = [];
+        const scope = this.getCurrentScope();
+        // Target count: 6 randomized enemy mannequins
+        for (let i = 0; i < 6; i++) {
+          const pad = 80;
+          const x = pad + Math.random() * (this.sim.width - pad * 2);
+          const y = pad + Math.random() * (this.sim.height - pad * 2);
+          // 8x targets are smaller silhouettes representing 300m range
+          const sizeFactor = Math.max(0.5, 1.4 - (scope.zoom * 0.1));
+          this.sim.spotTargets.push({
+            x: x,
+            y: y,
+            w: 36 * sizeFactor,
+            h: 70 * sizeFactor,
+            hit: false,
+            spawnTime: performance.now()
+          });
+        }
+        this.sim.activeTargetIndex = 0;
+      }
+
+      evaluateSpottingHit() {
+        const curTarget = this.sim.spotTargets[this.sim.activeTargetIndex];
+        if (!curTarget || curTarget.hit) return;
+
+        const dist = Math.hypot(this.sim.crosshair.x - curTarget.x, this.sim.crosshair.y - curTarget.y);
+        const hitRadius = curTarget.h * 0.65;
+
+        if (dist <= hitRadius) {
+          curTarget.hit = true;
+          this.sim.activeTargetIndex++;
+
+          // Calculate snap accuracy & overshoot ratio
+          const expectedDistance = Math.hypot(curTarget.x - this.sim.width / 2, curTarget.y - this.sim.height / 2);
+          const actualSwipe = this.pointer.deltaX;
+          const ratio = Math.max(0.6, Math.min(1.4, actualSwipe !== 0 ? Math.abs(actualSwipe) / expectedDistance : 1.0));
+          
+          this.calibratedData[this.activeScopeId].flickRatio = (this.calibratedData[this.activeScopeId].flickRatio + ratio) / 2;
+          document.getElementById('telSnapRatio').textContent = `${ratio.toFixed(2)} (${ratio > 1.05 ? 'Overshoot' : (ratio < 0.95 ? 'Undershoot' : 'Direct Hit')})`;
+
+          this.showToast(`Target Spotted! Hit Accuracy: ${(100 - dist).toFixed(0)}%`);
+
+          if (this.sim.activeTargetIndex >= this.sim.spotTargets.length) {
+            this.finishDrill();
+          }
+        }
+      }
+
+      updateTelemetryRatioHUD() {
+        const touch = this.inputAccumulator.touchDeltaTotal;
+        const gyro = this.inputAccumulator.gyroDeltaTotal * 1.8;
+        const total = touch + gyro;
+
+        let touchPct = 50;
+        let gyroPct = 50;
+
+        if (total > 0) {
+          touchPct = Math.round((touch / total) * 100);
+          gyroPct = 100 - touchPct;
+        }
+
+        if (this.gyroMode === 'off') {
+          touchPct = 100;
+          gyroPct = 0;
+        }
+
+        document.getElementById('barTouchRatio').style.width = `${touchPct}%`;
+        document.getElementById('barGyroRatio').style.width = `${gyroPct}%`;
+        document.getElementById('ratioTouchText').textContent = `${touchPct}% Touch`;
+        document.getElementById('ratioGyroText').textContent = `${gyroPct}% Gyro`;
+      }
+
+      runSimulationLoop() {
+        if (!this.drillActive) return;
+
+        this.updateSimulationPhysics();
+        this.renderSimulatorFrame();
+
+        this.animationId = requestAnimationFrame(() => this.runSimulationLoop());
+      }
+
+      updateSimulationPhysics() {
+        const scope = this.getCurrentScope();
+
+        // 1. Tracking Physics: strafing enemy mannequin
+        if (this.activeDrill === 'tracking') {
+          const runner = this.sim.runner;
+          runner.totalActiveFrames++;
+
+          runner.stateTimer++;
+          if (runner.stateTimer > 45) {
+            runner.stateTimer = 0;
+            // Random chance to jiggle, crouch or change sprint direction
+            if (Math.random() < 0.35) runner.direction *= -1;
+            runner.state = Math.random() < 0.25 ? 'crouch' : 'strafe';
+          }
+
+          runner.x += runner.vx * runner.direction;
+
+          // Wall bounce
+          const margin = 80;
+          if (runner.x <= margin) { runner.x = margin; runner.direction = 1; }
+          if (runner.x >= this.sim.width - margin) { runner.x = this.sim.width - margin; runner.direction = -1; }
+
+          // Check if crosshair is within torso/head
+          const dx = Math.abs(this.sim.crosshair.x - runner.x);
+          const dy = Math.abs(this.sim.crosshair.y - (runner.y - (runner.state === 'crouch' ? 15 : 0)));
+
+          if (dx <= runner.width && dy <= runner.height / 2) {
+            runner.isLocked = true;
+            runner.totalLockFrames++;
+          } else {
+            runner.isLocked = false;
+          }
+
+          const lockPct = ((runner.totalLockFrames / Math.max(1, runner.totalActiveFrames)) * 100).toFixed(1);
+          document.getElementById('hudAccuracyVal').textContent = `${lockPct}%`;
+          this.calibratedData[this.activeScopeId].trackingScore = parseFloat(lockPct);
+        }
+
+        // 2. Recoil Physics: Continuous weapon fire & climbing crosshair
+        if (this.activeDrill === 'recoil') {
+          const r = this.sim.recoil;
+          if (r.isFiring && r.roundsFired < r.maxRounds) {
+            r.roundsFired += 0.35; // ~10 rounds/second M416 rate
+            // Base climb per round scaled by scope zoom
+            const kickPerRound = (4.5 + (scope.zoom * 1.8));
+            r.verticalClimbTotal += kickPerRound;
+
+            // Weapon lifts crosshair UP
+            this.sim.crosshair.y -= kickPerRound * 0.7;
+            // Weapon horizontal bloom shake
+            this.sim.crosshair.x += (Math.random() - 0.5) * (3.0 + scope.zoom);
+
+            document.getElementById('telRecoilDelta').textContent = `${Math.round(r.userPullTotal)} px counter`;
+          }
+
+          // Evaluate stability relative to anchor
+          const distY = Math.abs(this.sim.crosshair.y - r.targetCrosshairY);
+          const stability = Math.max(0, 100 - (distY * 1.2)).toFixed(0);
+          document.getElementById('hudAccuracyVal').textContent = `${stability}% STABILITY`;
+        }
+      }
+
+      finishDrill() {
+        this.drillActive = false;
+        clearInterval(this.drillTimerInterval);
+        if (this.animationId) cancelAnimationFrame(this.animationId);
+
+        const scope = this.getCurrentScope();
+        this.calibratedData[scope.id].isTested = true;
+
+        // Calculate recoil pull down ratio if in recoil drill
+        if (this.activeDrill === 'recoil') {
+          const r = this.sim.recoil;
+          if (r.verticalClimbTotal > 0) {
+            const pullRatio = r.userPullTotal / r.verticalClimbTotal;
+            this.calibratedData[scope.id].recoilCounterRatio = Math.max(0.6, Math.min(1.5, pullRatio));
+          }
+        }
+
+        this.recalculateSensitivities();
+        this.renderScopePills();
+        this.updateMiniSensPreview();
+
+        this.showToast(`${scope.name} ${this.activeDrill.toUpperCase()} calibration complete!`);
+        document.getElementById('drillPromptOverlay').classList.remove('opacity-0', 'pointer-events-none');
+      }
+
+      // Mathematical Sensitivity Formulation Engine
+      recalculateSensitivities() {
+        const isGyro = this.gyroMode !== 'off';
+
+        SCOPES.forEach(scope => {
+          const d = this.calibratedData[scope.id];
+          
+          // 1. Flick Snap Correction (Camera Sens)
+          // If user undershot (ratio < 1), we increase sensitivity
+          const flickCorrection = 1 / Math.max(0.7, Math.min(1.3, d.flickRatio));
+
+          // 2. Tracking Precision Dampening
+          const trackingDampen = d.trackingScore < 70 ? 0.94 : (d.trackingScore > 90 ? 1.05 : 1.0);
+
+          // 3. Recoil Counter Adjustment (ADS Sens)
+          // If pull ratio < 1 (player under-compensated for weapon climb), we boost ADS
+          const recoilBoost = d.recoilCounterRatio < 0.95 ? 1.09 : (d.recoilCounterRatio > 1.1 ? 0.94 : 1.0);
+
+          // Scope magnification harmonic scale: Sens decreases as zoom increases
+          const focalFOVScale = Math.tan((scope.fov * Math.PI) / 360) / Math.tan((90 * Math.PI) / 360);
+
+          // Camera
+          d.camSens = Math.round(scope.baseCam * flickCorrection * trackingDampen);
+          // ADS
+          d.adsSens = Math.round(scope.baseADS * flickCorrection * recoilBoost);
+
+          // Gyro (up to 400%)
+          if (isGyro) {
+            d.gyroSens = Math.min(400, Math.round(scope.baseGyro * flickCorrection));
+            d.adsGyroSens = Math.min(400, Math.round(scope.baseADSGyro * flickCorrection * recoilBoost));
+          } else {
+            d.gyroSens = 0;
+            d.adsGyroSens = 0;
+          }
+        });
+
+        this.updateMiniSensPreview();
+        this.renderTableSliders();
+      }
+
+      // Harmonic Focal Auto-Tuning
+      autoTuneHarmonics() {
+        // Find already tested scopes
+        const tested = SCOPES.filter(s => this.calibratedData[s.id].isTested);
+        if (tested.length === 0) {
+          this.showToast('Please complete at least 1 Scope Drill first before auto-tuning!');
+          return;
+        }
+
+        // Base anchor from most tested scope (e.g. Red Dot or TPP)
+        const anchor = tested[0];
+        const anchorData = this.calibratedData[anchor.id];
+        const anchorFovTan = Math.tan((anchor.fov * Math.PI) / 360);
+
+        SCOPES.forEach(s => {
+          if (!this.calibratedData[s.id].isTested) {
+            const scopeFovTan = Math.tan((s.fov * Math.PI) / 360);
+            const ratio = scopeFovTan / anchorFovTan;
+
+            this.calibratedData[s.id].camSens = Math.max(5, Math.round(anchorData.camSens * ratio));
+            this.calibratedData[s.id].adsSens = Math.max(5, Math.round(anchorData.adsSens * ratio));
+            this.calibratedData[s.id].gyroSens = Math.min(400, Math.max(30, Math.round(anchorData.gyroSens * ratio * 1.1)));
+            this.calibratedData[s.id].adsGyroSens = Math.min(400, Math.max(30, Math.round(anchorData.adsGyroSens * ratio * 1.1)));
+            this.calibratedData[s.id].isTested = true;
+          }
+        });
+
+        this.renderScopePills();
+        this.renderTableSliders();
+        this.updateMiniSensPreview();
+        this.showToast('Harmonic focal ratio applied to all remaining scopes!');
+      }
+
+      // SIMULATOR RENDERING: Overlays, Reticles, Targets & Enemies
+      renderSimulatorFrame() {
+        const ctx = this.ctx;
+        const w = this.sim.width;
+        const h = this.sim.height;
+        const scope = this.getCurrentScope();
+
+        // 1. Parallax Tactical Background (Dark Training Ground)
+        ctx.fillStyle = '#060911';
+        ctx.fillRect(0, 0, w, h);
+
+        // Distance Ranging Grid Lines
+        ctx.strokeStyle = 'rgba(30, 45, 77, 0.4)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < w; x += 40) {
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+        }
+        for (let y = 0; y < h; y += 40) {
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        }
+
+        // Training Horizon Terrain Line
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.2)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, h * 0.7);
+        ctx.lineTo(w, h * 0.7);
+        ctx.stroke();
+
+        // 2. Render Drill Entities
+        if (this.activeDrill === 'spotting') {
+          this.drawSpottingTargets(ctx);
+        } else if (this.activeDrill === 'tracking') {
+          this.drawDynamicRunner(ctx);
+        } else if (this.activeDrill === 'recoil') {
+          this.drawRecoilTargetAnchor(ctx);
+        }
+
+        // 3. Render Authentic Scope Vignette & Reticle
+        this.drawScopeReticleOverlay(ctx, scope, this.sim.crosshair.x, this.sim.crosshair.y);
+      }
+
+      drawSpottingTargets(ctx) {
+        this.sim.spotTargets.forEach((t, idx) => {
+          if (t.hit) return;
+          const isCurrent = idx === this.sim.activeTargetIndex;
+
+          ctx.save();
+          // Draw Enemy Silhouette (Tactical Mannequin)
+          ctx.fillStyle = isCurrent ? 'rgba(244, 63, 94, 0.35)' : 'rgba(30, 45, 77, 0.6)';
+          ctx.strokeStyle = isCurrent ? '#f43f5e' : '#475569';
+          ctx.lineWidth = 2;
+
+          // Head
+          ctx.beginPath();
+          ctx.arc(t.x, t.y - t.h * 0.35, t.w * 0.28, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          // Torso
+          ctx.beginPath();
+          ctx.roundRect?.(t.x - t.w * 0.35, t.y - t.h * 0.2, t.w * 0.7, t.h * 0.55, 4);
+          ctx.fill();
+          ctx.stroke();
+
+          if (isCurrent) {
+            // Target Indicator Diamond
+            ctx.strokeStyle = '#00f0ff';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, t.h * 0.5, 0, Math.PI * 2);
+            ctx.setLineDash([4, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = '#00f0ff';
+            ctx.font = '10px "Chakra Petch", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('TARGET ACTIVE', t.x, t.y + t.h * 0.5 + 14);
+          }
+          ctx.restore();
+        });
+      }
+
+      drawDynamicRunner(ctx) {
+        const r = this.sim.runner;
+        const cy = r.y - (r.state === 'crouch' ? 15 : 0);
+
+        ctx.save();
+        ctx.fillStyle = r.isLocked ? 'rgba(16, 185, 129, 0.35)' : 'rgba(245, 158, 11, 0.25)';
+        ctx.strokeStyle = r.isLocked ? '#10b981' : '#f59e0b';
+        ctx.lineWidth = 2;
+
+        // Head
+        ctx.beginPath();
+        ctx.arc(r.x, cy - 25, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Torso
+        ctx.beginPath();
+        ctx.roundRect?.(r.x - 16, cy - 12, 32, 45, 4);
+        ctx.fill();
+        ctx.stroke();
+
+        // Sprinting velocity trail
+        ctx.strokeStyle = r.isLocked ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.4)';
+        ctx.beginPath();
+        ctx.moveTo(r.x - (r.direction * 35), cy);
+        ctx.lineTo(r.x, cy);
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = r.isLocked ? '#10b981' : '#fbbf24';
+        ctx.font = '10px "Chakra Petch", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(r.isLocked ? 'LOCKED ON' : 'TRACK ENEMY', r.x, cy - 42);
+        ctx.restore();
+      }
+
+      drawRecoilTargetAnchor(ctx) {
+        const r = this.sim.recoil;
+        const cx = this.sim.width / 2;
+        const ty = r.targetCrosshairY;
+
+        ctx.save();
+        // Bullseye Target
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(cx, ty, 30, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Ammo Bar
+        const ammoLeft = Math.floor(r.maxRounds - r.roundsFired);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(cx - 75, ty + 50, 150, 6);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(cx - 75, ty + 50, (ammoLeft / r.maxRounds) * 150, 6);
+
+        ctx.font = '10px "Chakra Petch", sans-serif';
+        ctx.fillStyle = '#94a3b8';
+        ctx.textAlign = 'center';
+        ctx.fillText(`AMMO: ${ammoLeft} / 30 ROUNDS (PULL DOWN)`, cx, ty + 70);
+
+        if (r.isFiring) {
+          // Muzzle flash particle burst
+          ctx.beginPath();
+          ctx.arc(this.sim.crosshair.x, this.sim.crosshair.y, 16, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.5)';
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      // AUTHENTIC SCOPE RETICLES
+      drawScopeReticleOverlay(ctx, scope, x, y) {
+        ctx.save();
+
+        // Scope 1: TPP Hipfire Crosshair
+        if (scope.id === 'tpp') {
+          ctx.strokeStyle = '#00f0ff';
+          ctx.lineWidth = 1.5;
+          const gap = 8;
+          const len = 12;
+
+          ctx.beginPath();
+          ctx.moveTo(x - gap, y); ctx.lineTo(x - gap - len, y);
+          ctx.moveTo(x + gap, y); ctx.lineTo(x + gap + len, y);
+          ctx.moveTo(x, y - gap); ctx.lineTo(x, y - gap - len);
+          ctx.moveTo(x, y + gap); ctx.lineTo(x, y + gap + len);
+          ctx.stroke();
+
+          ctx.fillStyle = '#00f0ff';
+          ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Scope 2: Red Dot Sight
+        else if (scope.id === 'reddot') {
+          // Glass tint circle
+          ctx.beginPath();
+          ctx.arc(x, y, 110, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(30, 45, 77, 0.8)';
+          ctx.lineWidth = 6;
+          ctx.stroke();
+
+          // Red Pip Dot
+          ctx.fillStyle = '#f43f5e';
+          ctx.shadowColor = '#f43f5e';
+          ctx.shadowBlur = 8;
+          ctx.beginPath();
+          ctx.arc(x, y, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Scope 3: 2x Scope (Green Circular Reticle)
+        else if (scope.id === 'scope2x') {
+          ctx.strokeStyle = '#10b981';
+          ctx.shadowColor = '#10b981';
+          ctx.shadowBlur = 6;
+          ctx.lineWidth = 2;
+
+          // Outer ring
+          ctx.beginPath();
+          ctx.arc(x, y, 18, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Center Pip
+          ctx.fillStyle = '#10b981';
+          ctx.beginPath();
+          ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Scope 4: 3x Scope (Ranging Bars & Chevron)
+        else if (scope.id === 'scope3x') {
+          ctx.strokeStyle = '#22d3ee';
+          ctx.lineWidth = 1.5;
+
+          // Chevron Up
+          ctx.beginPath();
+          ctx.moveTo(x - 8, y + 6);
+          ctx.lineTo(x, y);
+          ctx.lineTo(x + 8, y + 6);
+          ctx.stroke();
+
+          // Vertical Drop Bar
+          ctx.beginPath();
+          ctx.moveTo(x, y + 6);
+          ctx.lineTo(x, y + 35);
+          ctx.stroke();
+
+          // Horizontal ticks
+          [14, 22, 30].forEach(dy => {
+            ctx.beginPath();
+            ctx.moveTo(x - 6, y + dy);
+            ctx.lineTo(x + 6, y + dy);
+            ctx.stroke();
+          });
+        }
+
+        // Scope 5: 4x Scope (ACOG Chevron & Cross)
+        else if (scope.id === 'scope4x') {
+          ctx.strokeStyle = '#f43f5e';
+          ctx.lineWidth = 2;
+
+          // Red illuminated Chevron
+          ctx.beginPath();
+          ctx.moveTo(x - 7, y + 7);
+          ctx.lineTo(x, y);
+          ctx.lineTo(x + 7, y + 7);
+          ctx.stroke();
+
+          // Black stadia crosshair
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(x - 70, y); ctx.lineTo(x - 14, y);
+          ctx.moveTo(x + 14, y); ctx.lineTo(x + 70, y);
+          ctx.moveTo(x, y + 7);  ctx.lineTo(x, y + 70);
+          ctx.stroke();
+        }
+
+        // Scope 6: 6x Scope (Mil-Dot Grid)
+        else if (scope.id === 'scope6x') {
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 1.2;
+
+          // Full crosshair
+          ctx.beginPath();
+          ctx.moveTo(x - 120, y); ctx.lineTo(x + 120, y);
+          ctx.moveTo(x, y - 120); ctx.lineTo(x, y + 120);
+          ctx.stroke();
+
+          // Mil Dots
+          ctx.fillStyle = '#000000';
+          [-60, -40, -20, 20, 40, 60].forEach(d => {
+            ctx.beginPath(); ctx.arc(x + d, y, 1.8, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(x, y + d, 1.8, 0, Math.PI * 2); ctx.fill();
+          });
+
+          // Center red dot
+          ctx.fillStyle = '#f43f5e';
+          ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Scope 7: 8x Sniper Scope (Sniper Mil-Hash & Vignette Zoom Ring)
+        else if (scope.id === 'scope8x') {
+          // Vignette black border
+          ctx.beginPath();
+          ctx.arc(x, y, 160, 0, Math.PI * 2);
+          ctx.lineWidth = 180;
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.95)';
+          ctx.stroke();
+
+          // Thin Crosshair
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x - 160, y); ctx.lineTo(x + 160, y);
+          ctx.moveTo(x, y - 160); ctx.lineTo(x, y + 160);
+          ctx.stroke();
+
+          // Sub-hashes
+          for (let d = -100; d <= 100; d += 15) {
+            if (d === 0) continue;
+            ctx.beginPath(); ctx.moveTo(x + d, y - 4); ctx.lineTo(x + d, y + 4); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x - 4, y + d); ctx.lineTo(x + 4, y + d); ctx.stroke();
+          }
+
+          // Center Sniper Dot
+          ctx.fillStyle = '#000000';
+          ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
+        }
+
+        ctx.restore();
+      }
+
+      // BGMI SENSITIVITY TABLE RENDERING
+      setTableCategory(cat) {
+        this.tableCategory = cat;
+        ['camera', 'ads', 'gyro', 'adsGyro'].forEach(c => {
+          const btn = document.getElementById(`tblTab-${c}`);
+          if (c === cat) {
+            btn.className = 'flex-1 min-w-[120px] py-2 rounded-lg bg-bgmi-cyan/20 border border-bgmi-cyan text-bgmi-cyan text-center font-bold';
+          } else {
+            btn.className = 'flex-1 min-w-[120px] py-2 rounded-lg text-slate-400 hover:text-white text-center';
+          }
+        });
+        this.renderTableSliders();
+      }
+
+      renderTableSliders() {
+        const container = document.getElementById('tableSlidersList');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const isGyroCat = this.tableCategory.includes('gyro');
+        const maxVal = isGyroCat ? 400 : 200;
+
+        SCOPES.forEach(scope => {
+          const data = this.calibratedData[scope.id];
+          let val = 0;
+          if (this.tableCategory === 'camera') val = data.camSens;
+          if (this.tableCategory === 'ads') val = data.adsSens;
+          if (this.tableCategory === 'gyro') val = this.gyroMode === 'off' ? 0 : data.gyroSens;
+          if (this.tableCategory === 'adsGyro') val = this.gyroMode === 'off' ? 0 : data.adsGyroSens;
+
+          const row = document.createElement('div');
+          row.className = 'bg-bgmi-card p-3 rounded-lg border border-bgmi-border flex items-center justify-between gap-3';
+          row.innerHTML = `
+            <div class="w-1/3 min-w-[140px] flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full ${data.isTested ? 'bg-emerald-400' : 'bg-yellow-400'}"></span>
+              <div>
+                <span class="text-xs font-bold text-slate-100 block font-tech">${scope.name}</span>
+                <span class="text-[10px] text-slate-500 font-mono">${scope.zoom}x ZOOM • FOV ${scope.fov}°</span>
+              </div>
+            </div>
+            <div class="flex-1 flex items-center gap-3">
+              <input type="range" min="1" max="${maxVal}" value="${val}" 
+                oninput="lab.updateSliderValue('${scope.id}', '${this.tableCategory}', this.value, this)"
+                class="w-full h-1.5 bg-slate-800 rounded appearance-none cursor-pointer accent-cyan-400">
+              <span class="w-12 text-center text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-bgmi-bg border border-bgmi-cyan/40 text-bgmi-cyan">
+                ${val}%
+              </span>
+            </div>
+          `;
+          container.appendChild(row);
+        });
+      }
+
+      updateSliderValue(scopeId, cat, val, inputEl) {
+        val = parseInt(val);
+        if (cat === 'camera') this.calibratedData[scopeId].camSens = val;
+        if (cat === 'ads') this.calibratedData[scopeId].adsSens = val;
+        if (cat === 'gyro') this.calibratedData[scopeId].gyroSens = val;
+        if (cat === 'adsGyro') this.calibratedData[scopeId].adsGyroSens = val;
+
+        const badge = inputEl.nextElementSibling;
+        if (badge) badge.textContent = `${val}%`;
+      }
+
+      copyBGMICode() {
+        const lines = [
+          `// BGMI CALIBRATED SENSITIVITY CONFIGURATION`,
+          `// Generated by BGMI Scope-by-Scope Calibration Lab`,
+          `// Gyroscope Mode: ${this.gyroMode.toUpperCase()}`,
+          ``,
+          `[CAMERA SENSITIVITY]`,
+          ...SCOPES.map(s => `${s.name}: ${this.calibratedData[s.id].camSens}%`),
+          ``,
+          `[ADS SENSITIVITY]`,
+          ...SCOPES.map(s => `${s.name}: ${this.calibratedData[s.id].adsSens}%`),
+          ``,
+          `[GYROSCOPE SENSITIVITY]`,
+          ...SCOPES.map(s => `${s.name}: ${this.gyroMode === 'off' ? 0 : this.calibratedData[s.id].gyroSens}%`),
+          ``,
+          `[ADS GYROSCOPE SENSITIVITY]`,
+          ...SCOPES.map(s => `${s.name}: ${this.gyroMode === 'off' ? 0 : this.calibratedData[s.id].adsGyroSens}%`),
+        ];
+
+        const text = lines.join('\n');
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+          this.showToast('Copied full BGMI sensitivity profile to clipboard!');
+        } catch (e) {
+          this.showToast('Could not copy automatically');
+        }
+        document.body.removeChild(ta);
+      }
+
+      downloadConfigJSON() {
+        const payload = {
+          app: 'BGMI Sensitivity Lab Pro',
+          timestamp: new Date().toISOString(),
+          gyroMode: this.gyroMode,
+          scopes: this.calibratedData
+        };
+        const str = JSON.stringify(payload, null, 2);
+        const ta = document.createElement('textarea');
+        ta.value = str;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        this.showToast('JSON config exported to clipboard!');
+      }
+    }
+
+    let lab;
+    window.onload = function() {
+      lab = new BGMICalibrationLab();
+    };
+  </script>
+</body>
+</html>
